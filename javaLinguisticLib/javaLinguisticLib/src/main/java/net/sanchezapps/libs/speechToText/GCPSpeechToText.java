@@ -7,13 +7,19 @@ import java.io.IOException;
 
 
 public class GCPSpeechToText {
-    private static String generateRandomCustomId(){
+    private final String projectId;
+    private final String gcsUri;
+    public GCPSpeechToText(String projectId, String gcsUri) {
+        this.projectId = projectId;
+        this.gcsUri = gcsUri;
+    }
+    private  String generateRandomCustomId(){
         int length = 10;
         boolean useLetters = true;
         boolean useNumbers = true;
         return RandomStringUtils.random(length, useLetters, useNumbers);
     }
-    private static AdaptationClient createAdaptationClient(String parent,String customClassId){
+    private AdaptationClient createAdaptationClient(String parent,String customClassId){
         try {
             AdaptationClient adaptationClient = AdaptationClient.create();
             adaptationClient.createCustomClass(
@@ -28,7 +34,7 @@ public class GCPSpeechToText {
             throw new RuntimeException(e);
         }
     }
-    private static PhraseSet createPhraseSet(AdaptationClient adaptationClient,String parent,String phrase_set_id)
+    private PhraseSet createPhraseSet(AdaptationClient adaptationClient,String parent,String phrase_set_id)
     {
         return adaptationClient.createPhraseSet(
                 CreatePhraseSetRequest
@@ -39,7 +45,7 @@ public class GCPSpeechToText {
         );
 
     }
-    private static void deleteAdaptationClient(AdaptationClient adaptationClient,String projectId,String location,String customClassId)
+    private void deleteAdaptationClient(AdaptationClient adaptationClient,String projectId,String location,String customClassId)
     {
         adaptationClient.deleteCustomClass(
                 DeleteCustomClassRequest
@@ -49,7 +55,7 @@ public class GCPSpeechToText {
         );
 
     }
-    private static void deletePhraseSet(AdaptationClient adaptationClient,String projectId,String location,String phraseSetId) {
+    private void deletePhraseSet(AdaptationClient adaptationClient,String projectId,String location,String phraseSetId) {
         adaptationClient.deletePhraseSet(
                 DeletePhraseSetRequest
                         .newBuilder()
@@ -57,7 +63,7 @@ public class GCPSpeechToText {
                         .build()
         );
     }
-    private static RecognitionConfig createRecognitionConfig(SpeechAdaptation speechAdaptation) throws IOException {
+    private RecognitionConfig createRecognitionConfig(SpeechAdaptation speechAdaptation) throws IOException {
         return RecognitionConfig.newBuilder()
                 .setEncoding(AudioEncoding.MP3)
                 .setSampleRateHertz(16000)
@@ -65,7 +71,7 @@ public class GCPSpeechToText {
                 .setAdaptation(speechAdaptation)
                 .build();
     }
-    public static RecognizeResponse convert(String projectId, String gcsUri)throws Exception {
+    public RecognizeResponse convert()throws Exception {
         String location="global";
         String customClassId =generateRandomCustomId();
         String phraseSetId=generateRandomCustomId();
@@ -98,3 +104,4 @@ public class GCPSpeechToText {
         }
     }
 }
+
