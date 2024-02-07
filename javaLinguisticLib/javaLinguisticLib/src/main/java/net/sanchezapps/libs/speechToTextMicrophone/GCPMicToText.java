@@ -11,18 +11,35 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 public class GCPMicToText {
+    private final String projectId;
     private final ResponseObserver<StreamingRecognizeResponse> responseObserver;
-    private final SpeechClient client;
-    private ClientStream<StreamingRecognizeRequest> clientStream;
-    private final RecognitionConfig recognitionConfig;
+    private final ClientStream<StreamingRecognizeRequest> clientStream;
     private StreamingRecognizeRequest request;
-    private final String[] realTimeResponse = {""};
-    private final MicrophoneFactory  mic;
     private final AudioInputStream audio;
-    public GCPMicToText() throws Exception {
 
-        this.responseObserver =
-                new ResponseObserver<StreamingRecognizeResponse>() {
+    private final String[] realTimeResponse = {""};
+    public GCPMicToText(String projectId) throws Exception {
+        this.responseObserver=createResponseObserver();
+
+        SpeechClient client = SpeechClient.create();
+        RecognitionConfig recognitionConfig = createRecognitionConfig();
+
+        StreamingRecognitionConfig streamingRecognitionConfig=createStreamingRecognitionConfig();
+
+        this.request =createStreamingRecognizeRequest(streamingRecognitionConfig);
+
+        this.clientStream =
+                client.streamingRecognizeCallable().splitCall(responseObserver);
+
+        this.clientStream.send(request);
+
+        MicrophoneFactory mic = new MicrophoneFactory();
+        this.audio = new AudioInputStream(mic.Start());
+        this.projectId=projectId;
+    }
+
+    private ResponseObserver<StreamingRecognizeResponse> createResponseObserver(){
+        return new ResponseObserver<StreamingRecognizeResponse>() {
                     ArrayList<StreamingRecognizeResponse> responses = new ArrayList<>();
 
                     public void onStart(StreamController controller) {}
@@ -45,30 +62,32 @@ public class GCPMicToText {
                         System.out.println(t);
                     }
                 };
-        this.client = SpeechClient.create();
+    }
 
-        this.recognitionConfig =
-                RecognitionConfig.newBuilder()
+
+    private RecognitionConfig createRecognitionConfig()
+    {
+         return RecognitionConfig.newBuilder()
                         .setEncoding(RecognitionConfig.AudioEncoding.LINEAR16)
                         .setLanguageCode("en-US")
                         .setSampleRateHertz(16000)
                         .build();
-        StreamingRecognitionConfig streamingRecognitionConfig =
-                StreamingRecognitionConfig.newBuilder().setConfig(recognitionConfig).build();
+    }
 
-        this.request =
-                StreamingRecognizeRequest.newBuilder()
+    private StreamingRecognizeRequest createStreamingRecognizeRequest(StreamingRecognitionConfig streamingRecognitionConfig)
+    {
+        return StreamingRecognizeRequest.newBuilder()
                         .setStreamingConfig(streamingRecognitionConfig)
                         .build(); // The first request in a streaming call has to be a config
 
-        this.clientStream =
-                client.streamingRecognizeCallable().splitCall(responseObserver);
-
-        this.clientStream.send(request);
-
-        this.mic = new MicrophoneFactory();
-        this.audio = new AudioInputStream(mic.Start());
     }
+    private StreamingRecognitionConfig createStreamingRecognitionConfig() {
+        return StreamingRecognitionConfig.newBuilder()
+                        .setConfig(createRecognitionConfig())
+                        .build();
+    }
+
+
     private double calculateSignalEnergy(byte[] audioData) {
         double sum = 0;
         for (byte b : audioData) {
