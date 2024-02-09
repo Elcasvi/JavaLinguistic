@@ -11,23 +11,34 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 public class GCPMicToText {
-    private final String projectId;
     private final ResponseObserver<StreamingRecognizeResponse> responseObserver;
-    private final ClientStream<StreamingRecognizeRequest> clientStream;
     private StreamingRecognizeRequest request;
+    private final ClientStream<StreamingRecognizeRequest> clientStream;
+
     private final AudioInputStream audio;
 
     private final String[] realTimeResponse = {""};
     public GCPMicToText(String projectId) throws Exception {
+        String location="global";
+        String customClassId ="customClassId1";
+        String phraseSetId="phraseSetId1";
+        String parent=LocationName.of(projectId, location).toString();
+        AdaptationClient adaptationClient = createAdaptationClient(parent, customClassId);
+        PhraseSet phraseSetResponse = createPhraseSet(adaptationClient, parent, phraseSetId);
+        String phraseSetName = phraseSetResponse.getName();
+
+
+        SpeechAdaptation speechAdaptation = SpeechAdaptation.newBuilder()
+                .addPhraseSetReferences(phraseSetName)
+                .build();
+
+        StreamingRecognitionConfig streamingRecognitionConfig=createStreamingRecognitionConfig(speechAdaptation);
+
         this.responseObserver=createResponseObserver();
-
-        SpeechClient client = SpeechClient.create();
-        RecognitionConfig recognitionConfig = createRecognitionConfig();
-
-        StreamingRecognitionConfig streamingRecognitionConfig=createStreamingRecognitionConfig();
 
         this.request =createStreamingRecognizeRequest(streamingRecognitionConfig);
 
+        SpeechClient client = SpeechClient.create();
         this.clientStream =
                 client.streamingRecognizeCallable().splitCall(responseObserver);
 
@@ -35,7 +46,6 @@ public class GCPMicToText {
 
         MicrophoneFactory mic = new MicrophoneFactory();
         this.audio = new AudioInputStream(mic.Start());
-        this.projectId=projectId;
     }
 
     private ResponseObserver<StreamingRecognizeResponse> createResponseObserver(){
@@ -65,12 +75,13 @@ public class GCPMicToText {
     }
 
 
-    private RecognitionConfig createRecognitionConfig()
+    private RecognitionConfig createRecognitionConfig(SpeechAdaptation speechAdaptation)
     {
          return RecognitionConfig.newBuilder()
                         .setEncoding(RecognitionConfig.AudioEncoding.LINEAR16)
                         .setLanguageCode("en-US")
                         .setSampleRateHertz(16000)
+                        .setAdaptation(speechAdaptation)
                         .build();
     }
 
@@ -81,10 +92,35 @@ public class GCPMicToText {
                         .build(); // The first request in a streaming call has to be a config
 
     }
-    private StreamingRecognitionConfig createStreamingRecognitionConfig() {
+    private StreamingRecognitionConfig createStreamingRecognitionConfig(SpeechAdaptation speechAdaptation) {
         return StreamingRecognitionConfig.newBuilder()
-                        .setConfig(createRecognitionConfig())
+                        .setConfig(createRecognitionConfig(speechAdaptation))
                         .build();
+    }
+    private AdaptationClient createAdaptationClient(String parent,String customClassId){
+        try {
+            AdaptationClient adaptationClient = AdaptationClient.create();
+            adaptationClient.createCustomClass(
+                    CreateCustomClassRequest
+                            .newBuilder()
+                            .setParent(parent)
+                            .setCustomClassId(customClassId)
+                            .build()
+            );
+            return adaptationClient;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private PhraseSet createPhraseSet(AdaptationClient adaptationClient,String parent,String phrase_set_id) {
+        return adaptationClient.createPhraseSet(
+                CreatePhraseSetRequest
+                        .newBuilder()
+                        .setParent(parent)
+                        .setPhraseSetId(phrase_set_id)
+                        .build()
+        );
     }
 
 
@@ -112,8 +148,12 @@ public class GCPMicToText {
     }
 
 
-    private void processSpeech()
-    {
+    private void processSpeech() throws IOException {
+        SpeechClient client = SpeechClient.create();
+        ClientStream<StreamingRecognizeRequest> clientStream = client.streamingRecognizeCallable().splitCall(responseObserver);
+        clientStream.send(request);
+
+
         int silenceCount = 0;
         int silenceThreshold = 5;
         double threshold=2200;
@@ -164,8 +204,7 @@ public class GCPMicToText {
             }
         }
     }
-    public void start()
-    {
+    public void start() throws IOException {
         System.out.println("Start speaking");
         while (true) {
             processSpeech();
