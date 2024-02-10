@@ -32,6 +32,7 @@ Add the following dependency to your `pom.xml` file within the `<dependencies>` 
     <artifactId>javaLinguisticLib</artifactId>
     <version>1.0</version>
 </dependency>
+```
 
 
 # Usage
